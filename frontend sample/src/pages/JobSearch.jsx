@@ -26,7 +26,7 @@ const toUiJob = (job) => {
   };
 };
 
-export default function JobSearch() {
+export default function JobSearch({ setCurrentPage }) {
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -210,9 +210,7 @@ export default function JobSearch() {
                 <p className="job-detail-description">{selectedJob.description}</p>
 
                 <div className="job-detail-actions">
-                  <button className="apply-btn">Apply now</button>
-                 
-                 
+                  <button className="apply-btn" onClick={() => setCurrentPage("applyjob")}>Apply now</button>
                 </div>
               </div>
             ) : (

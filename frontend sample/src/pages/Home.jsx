@@ -6,6 +6,6 @@ export default function Home({ setCurrentPage }) {
     <main className="home-page">
       <Hero setCurrentPage={setCurrentPage} />
       <Features />
-    </main>
+    </main> 
   );
 }
