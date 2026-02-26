@@ -1,5 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import "../styles/job-application.css";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+const RESUME_PARSER_BASE_URL =
+  import.meta.env.VITE_RESUME_PARSER_BASE_URL || "http://localhost:8000";
 
 const initialFormData = {
   name: "",
@@ -13,10 +17,108 @@ const initialFormData = {
   age: "",
 };
 
+const normalizeEducationLevel = (value) => {
+  const text = (value || "").toString().trim().toLowerCase();
+  if (!text) return "";
+  if (text.includes("10")) return "10th";
+  if (text.includes("12")) return "12th";
+  if (text.includes("bachelor")) return "bachelors";
+  if (text.includes("master")) return "masters";
+  return "";
+};
+
+const normalizeGradingSystem = (value) => {
+  const text = (value || "").toString().trim().toLowerCase();
+  if (!text) return "";
+  if (text.includes("gpa") || text.includes("cgpa")) return "gpa";
+  if (text.includes("percent")) return "percentage";
+  return "";
+};
+
+const firstNonEmpty = (...values) => {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      const joined = value.filter(Boolean).join(", ").trim();
+      if (joined) return joined;
+      continue;
+    }
+
+    if (value === null || value === undefined) continue;
+    const normalized = String(value).trim();
+    if (normalized) return normalized;
+  }
+  return "";
+};
+
+const mapResumeDataToForm = (resumeData) => {
+  if (!resumeData || typeof resumeData !== "object") {
+    return initialFormData;
+  }
+
+  const educationEntry = Array.isArray(resumeData.education)
+    ? resumeData.education[0] || {}
+    : resumeData.education || {};
+
+  const phoneDigits = firstNonEmpty(
+    resumeData.phone,
+    resumeData.mobile,
+    resumeData.contact_number,
+    resumeData.contact
+  ).replace(/\D/g, "");
+
+  return {
+    name: firstNonEmpty(resumeData.full_name, resumeData.name),
+    phone: phoneDigits.slice(0, 10),
+    email: firstNonEmpty(resumeData.email, resumeData.email_id),
+    latestEducationLevel: normalizeEducationLevel(
+      firstNonEmpty(
+        educationEntry.latest_education_level,
+        educationEntry.degree,
+        resumeData.latest_education_level
+      )
+    ),
+    boardUniversity: firstNonEmpty(
+      educationEntry.board_university,
+      educationEntry.university,
+      resumeData.board_university
+    ),
+    institutionName: firstNonEmpty(
+      educationEntry.institution_name,
+      educationEntry.college,
+      educationEntry.school,
+      resumeData.institution_name
+    ),
+    gradingSystem: normalizeGradingSystem(
+      firstNonEmpty(
+        educationEntry.grading_system,
+        resumeData.grading_system
+      )
+    ),
+    score: firstNonEmpty(educationEntry.score, resumeData.score),
+    age: firstNonEmpty(resumeData.age),
+  };
+};
+
 export default function JobApplication({ setCurrentPage }) {
   const [formData, setFormData] = useState(initialFormData);
+  const [selectedResume, setSelectedResume] = useState(null);
+  const [parsedResumeData, setParsedResumeData] = useState(null);
+  const [atsScoreData, setAtsScoreData] = useState(null);
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isParsingResume, setIsParsingResume] = useState(false);
   const [phoneError, setPhoneError] = useState("");
+  const [parseMessage, setParseMessage] = useState("");
+  const [submitMessage, setSubmitMessage] = useState("");
+
+  const selectedJob = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem("selectedJob");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -31,17 +133,115 @@ export default function JobApplication({ setCurrentPage }) {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (event) => {
+  const handleResumeSelect = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setParseMessage("Please upload a PDF resume.");
+      setSelectedResume(null);
+      return;
+    }
+
+    setSelectedResume(file);
+    setParseMessage("");
+    await parseResume(file);
+  };
+
+  const parseResume = async (file) => {
+    setIsParsingResume(true);
+    setParseMessage("");
+
+    try {
+      const payload = new FormData();
+      payload.append("pdf_doc", file);
+      payload.append("job_description", selectedJob?.description || "");
+
+      const response = await fetch(`${RESUME_PARSER_BASE_URL}/api/process`, {
+        method: "POST",
+        body: payload,
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to parse resume.");
+      }
+
+      const extracted = result?.data || {};
+      const mapped = mapResumeDataToForm(extracted);
+
+      setParsedResumeData(extracted);
+      setAtsScoreData(result?.ats_score || null);
+      setFormData((prev) => ({ ...prev, ...mapped }));
+      setParseMessage("Resume parsed. You can edit any field before submitting.");
+    } catch (error) {
+      if (error instanceof TypeError) {
+        setParseMessage(
+          "Cannot connect to resume parser backend. Ensure Flask app runs on port 8000."
+        );
+      } else {
+        setParseMessage(error.message || "Resume parsing failed.");
+      }
+    } finally {
+      setIsParsingResume(false);
+    }
+  };
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
+    setSubmitted(false);
+    setSubmitMessage("");
+
+    if (!selectedJob?.id) {
+      setSubmitMessage("No job selected. Please go back and choose a job first.");
+      return;
+    }
 
     if (!/^\d{10}$/.test(formData.phone)) {
       setPhoneError("Phone number must be exactly 10 digits.");
       return;
     }
 
-    setSubmitted(true);
+    setIsSubmitting(true);
     setPhoneError("");
-    setFormData(initialFormData);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/applications`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jid: selectedJob.id,
+          ...formData,
+          resume_filename: selectedResume?.name || null,
+          resume_parsed_data: parsedResumeData,
+          ats_score: atsScoreData?.ats_score ?? null,
+          ats_match_percentage: atsScoreData?.match_percentage ?? null,
+          ats_raw_json: atsScoreData,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || "Failed to submit application.");
+      }
+
+      setSubmitted(true);
+      setSubmitMessage("Application submitted successfully.");
+      setFormData(initialFormData);
+      setSelectedResume(null);
+      setParsedResumeData(null);
+      setAtsScoreData(null);
+    } catch (error) {
+      if (error instanceof TypeError) {
+        setSubmitMessage("Cannot connect to backend. Ensure API is running on port 5000.");
+      } else {
+        setSubmitMessage(error.message || "Application submission failed.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -49,9 +249,34 @@ export default function JobApplication({ setCurrentPage }) {
       <section className="job-application-shell">
         <div className="job-application-card">
           <h1>Job application form</h1>
-          <p>Fill in your details to apply for this role.</p>
+          <p>Upload resume PDF for autofill, or complete fields manually.</p>
+
+          {selectedJob ? (
+            <p>
+              Applying for <strong>{selectedJob.title}</strong> at <strong>{selectedJob.company}</strong>
+            </p>
+          ) : (
+            <p className="application-error-message">
+              No job selected. Use Back to jobs and click Apply now on a job.
+            </p>
+          )}
 
           <form className="job-application-form" onSubmit={handleSubmit}>
+            <div className="application-field">
+              <label htmlFor="resumePdf">Resume PDF (optional but recommended)</label>
+              <input
+                id="resumePdf"
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={handleResumeSelect}
+              />
+              {isParsingResume ? <p>Parsing resume...</p> : null}
+              {parseMessage ? <p className="application-success-message">{parseMessage}</p> : null}
+              {atsScoreData?.ats_score !== undefined && atsScoreData?.ats_score !== null ? (
+                <p>ATS score for this role: {atsScoreData.ats_score}%</p>
+              ) : null}
+            </div>
+
             <div className="application-field">
               <label htmlFor="applicantName">Name *</label>
               <input
@@ -188,8 +413,8 @@ export default function JobApplication({ setCurrentPage }) {
             </div>
 
             <div className="application-actions">
-              <button type="submit" className="apply-submit-btn">
-                Submit Application
+              <button type="submit" className="apply-submit-btn" disabled={isSubmitting}>
+                {isSubmitting ? "Submitting..." : "Submit Application"}
               </button>
               <button
                 type="button"
@@ -201,11 +426,8 @@ export default function JobApplication({ setCurrentPage }) {
             </div>
           </form>
 
-          {submitted ? (
-            <p className="application-success-message">
-              Application submitted successfully.
-            </p>
-          ) : null}
+          {submitted ? <p className="application-success-message">Application submitted successfully.</p> : null}
+          {submitMessage && !submitted ? <p className="application-error-message">{submitMessage}</p> : null}
         </div>
       </section>
     </main>

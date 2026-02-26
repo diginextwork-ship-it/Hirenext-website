@@ -14,6 +14,7 @@ const toUiJob = (job) => {
 
   return {
     id: job.jid,
+    recruiterRid: job.recruiter_rid || null,
     title: job.role_name || "Untitled role",
     company: job.company_name || "Unknown company",
     location,
@@ -101,6 +102,13 @@ export default function JobSearch({ setCurrentPage }) {
 
   const selectedJob =
     filteredJobs.find((job) => job.id === selectedJobId) || filteredJobs[0];
+
+  const handleApplyNow = () => {
+    if (selectedJob) {
+      sessionStorage.setItem("selectedJob", JSON.stringify(selectedJob));
+    }
+    setCurrentPage("applyjob");
+  };
 
   return (
     <main className="job-search-page">
@@ -210,7 +218,7 @@ export default function JobSearch({ setCurrentPage }) {
                 <p className="job-detail-description">{selectedJob.description}</p>
 
                 <div className="job-detail-actions">
-                  <button className="apply-btn" onClick={() => setCurrentPage("applyjob")}>Apply now</button>
+                  <button className="apply-btn" onClick={handleApplyNow}>Apply now</button>
                 </div>
               </div>
             ) : (
