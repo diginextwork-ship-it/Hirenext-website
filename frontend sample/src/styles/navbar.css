@@ -260,23 +260,37 @@
         left: 0;
         right: 0;
         flex-direction: column;
-        background-color: var(--gray-dark);
-        padding: var(--spacing-lg);
+        background-color: transparent;
+        padding: 0 var(--spacing-lg);
         gap: var(--spacing-lg);
         max-height: 0;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(-8px);
         overflow: hidden;
-        transition: max-height 0.3s ease;
+        transition:
+            max-height 0.3s ease,
+            opacity 0.2s ease,
+            transform 0.3s ease,
+            padding 0.25s ease;
         margin-left: 0;
     }
 
-    .navbar-home .navbar-menu {
+    .navbar-home .navbar-menu.open {
         background: rgba(0, 0, 0, 0.55);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
     }
 
     .navbar-menu.open {
-        max-height: 500px;
+        max-height: 75vh;
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0);
+        padding: var(--spacing-lg);
+        background-color: var(--gray-dark);
     }
 
     .navbar-links {

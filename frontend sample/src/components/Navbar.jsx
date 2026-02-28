@@ -4,7 +4,6 @@ import "../styles/navbar.css";
 
 export default function Navbar({ setCurrentPage, currentPage }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isStaffingOpen, setIsStaffingOpen] = useState(false);
   const [isInsightsOpen, setIsInsightsOpen] = useState(false);
 
   const toggleMenu = () => {
@@ -14,7 +13,6 @@ export default function Navbar({ setCurrentPage, currentPage }) {
   const handleNavClick = (page) => {
     setCurrentPage(page);
     setIsMenuOpen(false);
-    setIsStaffingOpen(false);
     setIsInsightsOpen(false);
   };
 
@@ -38,31 +36,6 @@ export default function Navbar({ setCurrentPage, currentPage }) {
 
         <div className={`navbar-menu ${isMenuOpen ? "open" : ""}`}>
           <div className="navbar-links">
-            <div className="dropdown">
-              <button
-                className="nav-link dropdown-toggle"
-                onClick={() => setIsStaffingOpen(!isStaffingOpen)}
-              >
-                Staffing Solutions
-                <span className={`arrow ${isStaffingOpen ? "open" : ""}`}>
-                  v
-                </span>
-              </button>
-              {isStaffingOpen && (
-                <div className="dropdown-menu">
-                  <a href="#" className="dropdown-item">
-                    Call Center Staffing
-                  </a>
-                  <a href="#" className="dropdown-item">
-                    Customer Service
-                  </a>
-                  <a href="#" className="dropdown-item">
-                    Technical Support
-                  </a>
-                </div>
-              )}
-            </div>
-
             <a
               href="#"
               className="nav-link"
@@ -77,28 +50,6 @@ export default function Navbar({ setCurrentPage, currentPage }) {
             <a href="#" className="nav-link">
               About Us
             </a>
-
-            <div className="dropdown">
-              <button
-                className="nav-link dropdown-toggle"
-                onClick={() => setIsInsightsOpen(!isInsightsOpen)}
-              >
-                Insights
-                <span className={`arrow ${isInsightsOpen ? "open" : ""}`}>
-                  v
-                </span>
-              </button>
-              {isInsightsOpen && (
-                <div className="dropdown-menu">
-                  <a href="#" className="dropdown-item">
-                    Blog
-                  </a>
-                  <a href="#" className="dropdown-item">
-                    Case Studies
-                  </a>
-                </div>
-              )}
-            </div>
 
             <a
               href="/contactus"
