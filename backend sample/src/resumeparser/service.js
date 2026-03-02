@@ -49,6 +49,26 @@ const pickFirstNonEmpty = (...values) => {
   return "";
 };
 
+const extractApplicantName = (parsedData) => {
+  if (!parsedData || typeof parsedData !== "object" || Array.isArray(parsedData)) {
+    return null;
+  }
+
+  const candidate = pickFirstNonEmpty(
+    parsedData.full_name,
+    parsedData.fullName,
+    parsedData.name,
+    parsedData.candidate_name,
+    parsedData.candidateName,
+    parsedData.applicant_name,
+    parsedData.applicantName,
+    parsedData.personal_info?.name,
+    parsedData.personalInfo?.name
+  );
+
+  return candidate || null;
+};
+
 const extractAutofillFallbackFromText = (resumeText) => {
   const text = String(resumeText || "");
   const lines = text
@@ -293,6 +313,7 @@ const parseResumeWithAts = async ({ resumeBuffer, resumeFilename, jobDescription
       ok: true,
       message: "",
       parsedData,
+      applicantName: extractApplicantName(parsedData),
       atsScore,
       atsMatchPercentage,
       atsRawJson,
@@ -309,6 +330,7 @@ const parseResumeWithAts = async ({ resumeBuffer, resumeFilename, jobDescription
       ok: false,
       message: `Failed to parse resume: ${error.message}`,
       parsedData: null,
+      applicantName: null,
       atsScore: null,
       atsMatchPercentage: null,
       atsRawJson: null,
@@ -323,6 +345,7 @@ const extractResumeAts = async ({ resumeBuffer, resumeFilename, jobDescription }
       atsScore: null,
       atsMatchPercentage: null,
       atsRawJson: null,
+      applicantName: null,
       atsStatus: "unsupported_file_type",
     };
   }
@@ -338,6 +361,7 @@ const extractResumeAts = async ({ resumeBuffer, resumeFilename, jobDescription }
       atsScore: null,
       atsMatchPercentage: null,
       atsRawJson: null,
+      applicantName: null,
       atsStatus: "service_error",
     };
   }
@@ -346,6 +370,7 @@ const extractResumeAts = async ({ resumeBuffer, resumeFilename, jobDescription }
     atsScore: parsed.atsScore,
     atsMatchPercentage: parsed.atsMatchPercentage,
     atsRawJson: parsed.atsRawJson,
+    applicantName: parsed.applicantName,
     atsStatus: "scored",
   };
 };
@@ -356,4 +381,5 @@ module.exports = {
   decodeResumeBuffer,
   parseResumeWithAts,
   extractResumeAts,
+  extractApplicantName,
 };
