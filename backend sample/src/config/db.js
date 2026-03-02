@@ -30,6 +30,74 @@ const columnExists = async (tableName, columnName) => {
   return rows.length > 0;
 };
 
+const indexExists = async (tableName, indexName) => {
+  const [rows] = await pool.query(
+    `SELECT 1
+     FROM information_schema.statistics
+     WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?
+     LIMIT 1`,
+    [tableName, indexName]
+  );
+  return rows.length > 0;
+};
+
+const tableExists = async (tableName) => {
+  const [rows] = await pool.query(
+    `SELECT 1
+     FROM information_schema.tables
+     WHERE table_schema = DATABASE() AND table_name = ?
+     LIMIT 1`,
+    [tableName]
+  );
+  return rows.length > 0;
+};
+
+const getColumnMetadata = async (tableName, columnName) => {
+  const [rows] = await pool.query(
+    `SELECT
+      COLUMN_TYPE AS columnType,
+      DATA_TYPE AS dataType,
+      CHARACTER_SET_NAME AS characterSetName,
+      COLLATION_NAME AS collationName
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?
+     LIMIT 1`,
+    [tableName, columnName]
+  );
+  return rows.length > 0 ? rows[0] : null;
+};
+
+const buildColumnSql = (metadata, fallbackSql) => {
+  if (!metadata || !metadata.columnType) return fallbackSql;
+  const baseType = String(metadata.columnType).trim();
+  const isCharLike = ["char", "varchar", "tinytext", "text", "mediumtext", "longtext"].includes(
+    String(metadata.dataType || "").toLowerCase()
+  );
+  const collationClause =
+    isCharLike && metadata.collationName ? ` COLLATE ${metadata.collationName}` : "";
+  return `${baseType}${collationClause}`;
+};
+
+const ensureJobsTableColumns = async () => {
+  if (!(await tableExists("jobs"))) return;
+
+  if (!(await columnExists("jobs", "positions_open"))) {
+    await pool.query(
+      "ALTER TABLE jobs ADD COLUMN positions_open INT NOT NULL DEFAULT 1 AFTER role_name"
+    );
+  }
+
+  if (!(await columnExists("jobs", "created_at"))) {
+    await pool.query(
+      "ALTER TABLE jobs ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+    );
+  }
+
+  if (!(await indexExists("jobs", "idx_jobs_created_at"))) {
+    await pool.query("CREATE INDEX idx_jobs_created_at ON jobs (created_at)");
+  }
+};
+
 const ensureResumesDataTable = async () => {
   await pool.query(
     `CREATE TABLE IF NOT EXISTS resumes_data (
@@ -79,6 +147,12 @@ const ensureResumesDataTable = async () => {
   if (!(await columnExists("resumes_data", "ats_raw_json"))) {
     await pool.query("ALTER TABLE resumes_data ADD COLUMN ats_raw_json JSON NULL");
   }
+
+  if (!(await columnExists("resumes_data", "submitted_by_role"))) {
+    await pool.query(
+      "ALTER TABLE resumes_data ADD COLUMN submitted_by_role VARCHAR(30) NULL DEFAULT 'recruiter'"
+    );
+  }
 };
 
 const ensureResumeIdSequenceTable = async () => {
@@ -125,10 +199,41 @@ const ensureApplicationColumns = async () => {
   }
 };
 
+const ensureJobResumeSelectionTable = async () => {
+  const jobJidMetadata = await getColumnMetadata("jobs", "jid");
+  const resumeIdMetadata = await getColumnMetadata("resumes_data", "res_id");
+  const jobJidColumnSql = buildColumnSql(jobJidMetadata, "INT");
+  const resumeIdColumnSql = buildColumnSql(resumeIdMetadata, "VARCHAR(30)");
+
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS job_resume_selection (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      job_jid ${jobJidColumnSql} NOT NULL,
+      res_id ${resumeIdColumnSql} NOT NULL,
+      selected_by_admin VARCHAR(50) NOT NULL,
+      selection_status ENUM('selected', 'rejected', 'on_hold') NOT NULL DEFAULT 'selected',
+      selection_note TEXT NULL,
+      selected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_job_resume_selection (job_jid, res_id),
+      INDEX idx_job_resume_selection_job_status_time (job_jid, selection_status, selected_at),
+      CONSTRAINT fk_job_resume_selection_job
+        FOREIGN KEY (job_jid) REFERENCES jobs(jid)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+      CONSTRAINT fk_job_resume_selection_resume
+        FOREIGN KEY (res_id) REFERENCES resumes_data(res_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+    )`
+  );
+};
+
 const initDatabase = async () => {
   await ensureResumeIdSequenceTable();
+  await ensureJobsTableColumns();
   await ensureResumesDataTable();
   await ensureApplicationColumns();
+  await ensureJobResumeSelectionTable();
 };
 
 pool.initDatabase = initDatabase;
