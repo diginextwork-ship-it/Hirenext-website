@@ -1,5 +1,5 @@
 import "../styles/hero.css";
-import CTAButtons from "./CTAButtons";
+import CTAButtons from "./CTAbuttons";
 import bgVideo from "../assets/video/bg_video.mp4";
 
 export default function Hero({ setCurrentPage }) {
