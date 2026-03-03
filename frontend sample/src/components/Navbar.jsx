@@ -67,7 +67,7 @@ export default function Navbar({ setCurrentPage, currentPage }) {
             
             <button
               className="btn btn-secondary"
-              onClick={() => handleNavClick("contactus")}
+              onClick={() => handleNavClick("schedulecall")}
             >
               Schedule A Call Now
             </button>

@@ -78,17 +78,6 @@ export default function Features() {
 
           <div className="feature-card">
             <div className="feature-icon">
-              <span>📞</span>
-            </div>
-            <h3>Industry Expertise</h3>
-            <p>
-              20+ years of call center staffing experience helping businesses
-              like yours succeed.
-            </p>
-          </div>
-
-          <div className="feature-card">
-            <div className="feature-icon">
               <span>🎯</span>
             </div>
             <h3>Perfect Match</h3>

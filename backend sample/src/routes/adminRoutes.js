@@ -46,6 +46,44 @@ const ensureAdminAuthorized = (req, res) => {
   return false;
 };
 
+const toPositiveMoney = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.round(parsed * 100) / 100;
+};
+
+const toMoneyNumber = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.round(parsed * 100) / 100;
+};
+
+const normalizeRevenueEntryType = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "intake" || normalized === "income" || normalized === "in") {
+    return "intake";
+  }
+  if (normalized === "expense" || normalized === "outgoing" || normalized === "out") {
+    return "expense";
+  }
+  return "";
+};
+
+const recomputeMoneyProfit = async (connection) => {
+  const [rows] = await connection.query(
+    `SELECT id, company_rev AS companyRev, expense
+     FROM money_sum
+     ORDER BY created_at ASC, id ASC`
+  );
+
+  let runningProfit = 0;
+  for (const row of rows) {
+    runningProfit =
+      Math.round((runningProfit + toMoneyNumber(row.companyRev) - toMoneyNumber(row.expense)) * 100) / 100;
+    await connection.query("UPDATE money_sum SET profit = ? WHERE id = ?", [runningProfit, row.id]);
+  }
+};
+
 router.get("/api/admin/dashboard", async (_req, res) => {
   try {
     let recruiterPerformance = [];
@@ -653,6 +691,207 @@ router.get("/api/admin/jobs/:jid/selection-summary", async (req, res) => {
       message: "Failed to fetch selection summary.",
       error: error.message,
     });
+  }
+});
+
+router.get("/api/admin/revenue", async (req, res) => {
+  if (!ensureAdminAuthorized(req, res)) return;
+
+  try {
+    const hasMoneySumTable = await tableExists("money_sum");
+    if (!hasMoneySumTable) {
+      return res.status(200).json({
+        entries: [],
+        summary: {
+          totalIntake: 0,
+          totalExpense: 0,
+          netProfit: 0,
+        },
+        dailyTrend: [],
+      });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT
+        id,
+        company_rev AS companyRev,
+        expense,
+        profit,
+        reason,
+        entry_type AS entryType,
+        created_at AS createdAt
+      FROM money_sum
+      ORDER BY created_at DESC, id DESC`
+    );
+
+    const [summaryRows] = await pool.query(
+      `SELECT
+        COALESCE(SUM(company_rev), 0) AS totalIntake,
+        COALESCE(SUM(expense), 0) AS totalExpense
+      FROM money_sum`
+    );
+    const totalIntake = toMoneyNumber(summaryRows?.[0]?.totalIntake);
+    const totalExpense = toMoneyNumber(summaryRows?.[0]?.totalExpense);
+    const netProfit = Math.round((totalIntake - totalExpense) * 100) / 100;
+
+    const [trendRows] = await pool.query(
+      `SELECT
+        DATE(created_at) AS date,
+        COALESCE(SUM(company_rev), 0) AS intake,
+        COALESCE(SUM(expense), 0) AS expense
+      FROM money_sum
+      GROUP BY DATE(created_at)
+      ORDER BY DATE(created_at) ASC`
+    );
+
+    return res.status(200).json({
+      entries: rows.map((row) => ({
+        id: Number(row.id),
+        companyRev: toMoneyNumber(row.companyRev),
+        expense: toMoneyNumber(row.expense),
+        profit: toMoneyNumber(row.profit),
+        reason: row.reason || "",
+        entryType: normalizeRevenueEntryType(row.entryType) || (toMoneyNumber(row.companyRev) > 0 ? "intake" : "expense"),
+        createdAt: row.createdAt,
+      })),
+      summary: {
+        totalIntake,
+        totalExpense,
+        netProfit,
+      },
+      dailyTrend: trendRows.map((row) => {
+        const intake = toMoneyNumber(row.intake);
+        const expense = toMoneyNumber(row.expense);
+        return {
+          date: row.date,
+          intake,
+          expense,
+          net: Math.round((intake - expense) * 100) / 100,
+        };
+      }),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch revenue dashboard.",
+      error: error.message,
+    });
+  }
+});
+
+router.post("/api/admin/revenue/entries", async (req, res) => {
+  if (!ensureAdminAuthorized(req, res)) return;
+
+  const entryType = normalizeRevenueEntryType(req.body?.entryType);
+  const amount = toPositiveMoney(req.body?.amount);
+  const reason = String(req.body?.reason || "").trim();
+
+  if (!entryType || amount === null) {
+    return res.status(400).json({
+      message: "entryType ('intake' or 'expense') and positive amount are required.",
+    });
+  }
+
+  if (entryType === "expense" && !reason) {
+    return res.status(400).json({
+      message: "reason is required for expense entries.",
+    });
+  }
+
+  const companyRev = entryType === "intake" ? amount : 0;
+  const expense = entryType === "expense" ? amount : 0;
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [profitRows] = await connection.query(
+      "SELECT COALESCE(profit, 0) AS lastProfit FROM money_sum ORDER BY created_at DESC, id DESC LIMIT 1"
+    );
+    const lastProfit = toMoneyNumber(profitRows?.[0]?.lastProfit);
+    const nextProfit = Math.round((lastProfit + companyRev - expense) * 100) / 100;
+
+    const [insertResult] = await connection.query(
+      `INSERT INTO money_sum
+        (company_rev, expense, profit, reason, entry_type)
+       VALUES (?, ?, ?, ?, ?)`,
+      [companyRev, expense, nextProfit, reason || null, entryType]
+    );
+
+    const [entryRows] = await connection.query(
+      `SELECT
+        id,
+        company_rev AS companyRev,
+        expense,
+        profit,
+        reason,
+        entry_type AS entryType,
+        created_at AS createdAt
+      FROM money_sum
+      WHERE id = ?
+      LIMIT 1`,
+      [insertResult.insertId]
+    );
+
+    await connection.commit();
+    return res.status(201).json({
+      message: "Revenue entry added successfully.",
+      entry: entryRows.length > 0
+        ? {
+            id: Number(entryRows[0].id),
+            companyRev: toMoneyNumber(entryRows[0].companyRev),
+            expense: toMoneyNumber(entryRows[0].expense),
+            profit: toMoneyNumber(entryRows[0].profit),
+            reason: entryRows[0].reason || "",
+            entryType: normalizeRevenueEntryType(entryRows[0].entryType),
+            createdAt: entryRows[0].createdAt,
+          }
+        : null,
+    });
+  } catch (error) {
+    await connection.rollback();
+    return res.status(500).json({
+      message: "Failed to add revenue entry.",
+      error: error.message,
+    });
+  } finally {
+    connection.release();
+  }
+});
+
+router.delete("/api/admin/revenue/entries/:id", async (req, res) => {
+  if (!ensureAdminAuthorized(req, res)) return;
+
+  const entryId = Number(req.params.id);
+  if (!Number.isInteger(entryId) || entryId <= 0) {
+    return res.status(400).json({ message: "Entry id must be a positive integer." });
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [existing] = await connection.query(
+      "SELECT id FROM money_sum WHERE id = ? LIMIT 1",
+      [entryId]
+    );
+    if (existing.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ message: "Revenue entry not found." });
+    }
+
+    await connection.query("DELETE FROM money_sum WHERE id = ?", [entryId]);
+    await recomputeMoneyProfit(connection);
+    await connection.commit();
+
+    return res.status(200).json({ message: "Revenue entry removed successfully." });
+  } catch (error) {
+    await connection.rollback();
+    return res.status(500).json({
+      message: "Failed to remove revenue entry.",
+      error: error.message,
+    });
+  } finally {
+    connection.release();
   }
 });
 

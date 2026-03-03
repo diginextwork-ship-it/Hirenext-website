@@ -139,3 +139,16 @@ CREATE TABLE IF NOT EXISTS job_resume_selection (
     FOREIGN KEY (res_id) REFERENCES resumes_data(res_id)
     ON UPDATE CASCADE ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS money_sum (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  company_rev DECIMAL(14,2) NOT NULL DEFAULT 0,
+  expense DECIMAL(14,2) NOT NULL DEFAULT 0,
+  profit DECIMAL(14,2) NOT NULL DEFAULT 0,
+  reason TEXT NULL,
+  entry_type VARCHAR(20) NOT NULL DEFAULT 'expense',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_money_sum_created_at (created_at),
+  INDEX idx_money_sum_entry_type (entry_type)
+);

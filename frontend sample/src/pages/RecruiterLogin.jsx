@@ -44,6 +44,10 @@ const toUiJob = (job) => ({
   recruiterRid: job.recruiter_rid || null,
   company: job.company_name || "Unknown company",
   title: job.role_name || "Untitled role",
+  positionsOpen: Number(job.positions_open) || 1,
+  revenue: job.revenue === null || job.revenue === undefined ? null : Number(job.revenue),
+  pointsPerJoining: Number(job.points_per_joining) || 0,
+  createdAt: job.created_at || null,
   city: job.city || "",
   state: job.state || "",
   pincode: job.pincode || "",
@@ -65,7 +69,7 @@ export default function RecruiterLogin() {
   const [isLoadingJobs, setIsLoadingJobs] = useState(false);
   const [recruiter, setRecruiter] = useState(null);
   const [dashboard, setDashboard] = useState({
-    summary: { success: 0, thisMonth: 0 },
+    summary: { success: 0, points: 0, thisMonth: 0 },
     monthlyTrend: [],
   });
   const [applications, setApplications] = useState([]);
@@ -80,6 +84,9 @@ export default function RecruiterLogin() {
     pincode: "",
     company_name: "",
     role_name: "",
+    positions_open: 1,
+    revenue: "",
+    points_per_joining: 0,
     skills: "",
     job_description: "",
     experience: "",
@@ -97,13 +104,13 @@ export default function RecruiterLogin() {
   const [isSubmittingResume, setIsSubmittingResume] = useState(false);
   const [resumeMessage, setResumeMessage] = useState("");
   const [resumeMessageType, setResumeMessageType] = useState("");
+  const normalizedRole = String(recruiter?.role || "").trim().toLowerCase();
   const canCreateJobs =
-    String(recruiter?.role || "")
-      .trim()
-      .toLowerCase() === "job creator" || Boolean(recruiter?.addjob);
-  const canUploadResumes = String(recruiter?.role || "")
-    .trim()
-    .toLowerCase() === "recruiter";
+    normalizedRole === "job creator" ||
+    normalizedRole === "job adder" ||
+    Boolean(recruiter?.addjob);
+  const canUploadResumes = normalizedRole === "recruiter";
+  const showRecruiterPerformance = normalizedRole === "recruiter";
 
   const fetchRecruiterDashboard = async (rid) => {
     const response = await fetch(`${API_BASE_URL}/api/recruiters/${rid}/dashboard`);
@@ -115,7 +122,7 @@ export default function RecruiterLogin() {
       throw new Error(data?.message || "Failed to fetch recruiter dashboard.");
     }
     setDashboard({
-      summary: data.summary || { success: 0, thisMonth: 0 },
+      summary: data.summary || { success: 0, points: 0, thisMonth: 0 },
       monthlyTrend: Array.isArray(data.monthlyTrend) ? data.monthlyTrend : [],
     });
   };
@@ -216,7 +223,8 @@ export default function RecruiterLogin() {
 
     const loadDashboard = async () => {
       try {
-        const tasks = [fetchRecruiterDashboard(recruiter.rid), fetchApplications(recruiter.rid)];
+        const tasks = [fetchApplications(recruiter.rid)];
+        if (showRecruiterPerformance) tasks.push(fetchRecruiterDashboard(recruiter.rid));
         if (canCreateJobs) tasks.push(fetchAllJobs());
         if (canUploadResumes) tasks.push(fetchRecruiterResumes(recruiter.rid));
         await Promise.all(tasks);
@@ -227,7 +235,7 @@ export default function RecruiterLogin() {
     };
 
     loadDashboard();
-  }, [recruiter?.rid, canCreateJobs, canUploadResumes]);
+  }, [recruiter?.rid, canCreateJobs, canUploadResumes, showRecruiterPerformance]);
 
   const recruiterTrendData = useMemo(
     () =>
@@ -357,6 +365,9 @@ export default function RecruiterLogin() {
         pincode: "",
         company_name: "",
         role_name: "",
+        positions_open: 1,
+        revenue: "",
+        points_per_joining: 0,
         skills: "",
         job_description: "",
         experience: "",
@@ -364,7 +375,11 @@ export default function RecruiterLogin() {
         qualification: "",
         benefits: "",
       });
-      await fetchAllJobs();
+      try {
+        await fetchAllJobs();
+      } catch (refreshError) {
+        // Keep create success visible even if list refresh fails on older schemas.
+      }
     } catch (error) {
       if (error instanceof TypeError) {
         setJobMessageType("error");
@@ -442,76 +457,86 @@ export default function RecruiterLogin() {
               Logged in as <strong>{recruiter.name}</strong>.
             </p>
 
-            <div className="recruiter-dashboard-grid">
-              <div className="recruiter-stat-card">
-                <h2>Monthly completion</h2>
-                <p className="recruiter-stat-value">{dashboard.summary.thisMonth}</p>
-                <p className="recruiter-stat-caption">
-                  Number of candidates you completed this month.
-                </p>
-              </div>
+            {showRecruiterPerformance ? (
+              <>
+                <div className="recruiter-dashboard-grid">
+                  <div className="recruiter-stat-card">
+                    <h2>Monthly completion</h2>
+                    <p className="recruiter-stat-value">{dashboard.summary.thisMonth}</p>
+                    <p className="recruiter-stat-caption">
+                      Number of candidates you completed this month.
+                    </p>
+                  </div>
 
-              <div className="recruiter-stat-card">
-                <h2>Total success</h2>
-                <p className="recruiter-stat-value">{dashboard.summary.success}</p>
-                <p className="recruiter-stat-caption">Stored in recruiter.success.</p>
-              </div>
-            </div>
+                  <div className="recruiter-stat-card">
+                    <h2>Total success</h2>
+                    <p className="recruiter-stat-value">{dashboard.summary.success}</p>
+                    <p className="recruiter-stat-caption">Stored in recruiter.success.</p>
+                  </div>
 
-            <div className="candidate-click-panel">
-              <label htmlFor="candidateName">Candidate Name (optional)</label>
-              <input
-                id="candidateName"
-                type="text"
-                value={candidateName}
-                onChange={(event) => setCandidateName(event.target.value)}
-                placeholder="Candidate name for performance chart"
-              />
-              <button
-                type="button"
-                className="click-here-btn"
-                onClick={handleCompleteCandidate}
-                disabled={isUpdatingCounter}
-              >
-                {isUpdatingCounter ? "Updating..." : "Click Here"}
-              </button>
-              {dashboardMessage ? (
-                <p
-                  className={`job-message ${
-                    dashboardMessageType === "success"
-                      ? "job-message-success"
-                      : "job-message-error"
-                  }`}
-                >
-                  {dashboardMessage}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="chart-card">
-              <h2>Your candidate completions this month</h2>
-              {recruiterTrendData.length > 0 ? (
-                <div className="chart-wrap">
-                  <ResponsiveContainer width="100%" height={280}>
-                    <LineChart data={recruiterTrendData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis allowDecimals={false} />
-                      <Tooltip />
-                      <Line
-                        type="monotone"
-                        dataKey="clicks"
-                        stroke="#c62828"
-                        strokeWidth={3}
-                        dot={{ r: 4 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <div className="recruiter-stat-card">
+                    <h2>Total points</h2>
+                    <p className="recruiter-stat-value">{dashboard.summary.points}</p>
+                    <p className="recruiter-stat-caption">Awarded when admin marks resumes accepted.</p>
+                  </div>
                 </div>
-              ) : (
-                <p className="chart-empty">No candidate completions recorded this month yet.</p>
-              )}
-            </div>
+
+                <div className="candidate-click-panel">
+                  <label htmlFor="candidateName">Candidate Name (optional)</label>
+                  <input
+                    id="candidateName"
+                    type="text"
+                    value={candidateName}
+                    onChange={(event) => setCandidateName(event.target.value)}
+                    placeholder="Candidate name for performance chart"
+                  />
+                  <button
+                    type="button"
+                    className="click-here-btn"
+                    onClick={handleCompleteCandidate}
+                    disabled={isUpdatingCounter}
+                  >
+                    {isUpdatingCounter ? "Updating..." : "Click Here"}
+                  </button>
+                  {dashboardMessage ? (
+                    <p
+                      className={`job-message ${
+                        dashboardMessageType === "success"
+                          ? "job-message-success"
+                          : "job-message-error"
+                      }`}
+                    >
+                      {dashboardMessage}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="chart-card">
+                  <h2>Your candidate completions this month</h2>
+                  {recruiterTrendData.length > 0 ? (
+                    <div className="chart-wrap">
+                      <ResponsiveContainer width="100%" height={280}>
+                        <LineChart data={recruiterTrendData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" />
+                          <YAxis allowDecimals={false} />
+                          <Tooltip />
+                          <Line
+                            type="monotone"
+                            dataKey="clicks"
+                            stroke="#c62828"
+                            strokeWidth={3}
+                            dot={{ r: 4 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <p className="chart-empty">No candidate completions recorded this month yet.</p>
+                  )}
+                </div>
+              </>
+            ) : null}
 
             {canCreateJobs ? (
               <div className="chart-card" style={{ marginTop: "16px" }}>
@@ -565,6 +590,16 @@ export default function RecruiterLogin() {
                               </p>
                               <p>
                                 <strong>Description:</strong> {job.description || "N/A"}
+                              </p>
+                              <p>
+                                <strong>Positions Open:</strong> {job.positionsOpen}
+                              </p>
+                              <p>
+                                <strong>Estimated Revenue:</strong>{" "}
+                                {job.revenue === null ? "N/A" : job.revenue}
+                              </p>
+                              <p>
+                                <strong>Points Per Joining:</strong> {job.pointsPerJoining}
                               </p>
                               <p>
                                 <strong>Benefits:</strong> {job.benefits || "N/A"}
@@ -738,29 +773,8 @@ export default function RecruiterLogin() {
             ) : null}
             {canCreateJobs ? (
               <form onSubmit={handleJobSubmit} className="job-form">
-                <h2 className="add-job-title">add job</h2>
+                <h2 className="add-job-title">create job alert</h2>
                 <div className="job-form-grid">
-                  <div className="job-field">
-                    <label htmlFor="city">City *</label>
-                    <input id="city" name="city" value={jobData.city} onChange={handleJobInputChange} required />
-                  </div>
-
-                  <div className="job-field">
-                    <label htmlFor="state">State *</label>
-                    <input id="state" name="state" value={jobData.state} onChange={handleJobInputChange} required />
-                  </div>
-
-                  <div className="job-field">
-                    <label htmlFor="pincode">Pincode *</label>
-                    <input
-                      id="pincode"
-                      name="pincode"
-                      value={jobData.pincode}
-                      onChange={handleJobInputChange}
-                      required
-                    />
-                  </div>
-
                   <div className="job-field">
                     <label htmlFor="company_name">Company Name *</label>
                     <input
@@ -773,7 +787,7 @@ export default function RecruiterLogin() {
                   </div>
 
                   <div className="job-field">
-                    <label htmlFor="role_name">Role Name *</label>
+                    <label htmlFor="role_name">Job Title *</label>
                     <input
                       id="role_name"
                       name="role_name"
@@ -784,66 +798,121 @@ export default function RecruiterLogin() {
                   </div>
 
                   <div className="job-field">
-                    <label htmlFor="experience">Experience (optional)</label>
+                    <label htmlFor="positions_open">Number of Positions Open *</label>
                     <input
-                      id="experience"
-                      name="experience"
-                      value={jobData.experience}
+                      id="positions_open"
+                      name="positions_open"
+                      type="number"
+                      min="1"
+                      value={jobData.positions_open}
                       onChange={handleJobInputChange}
+                      required
                     />
                   </div>
 
                   <div className="job-field">
-                    <label htmlFor="salary">Salary (optional)</label>
-                    <input id="salary" name="salary" value={jobData.salary} onChange={handleJobInputChange} />
+                    <label htmlFor="revenue">Estimated Revenue *</label>
+                    <input
+                      id="revenue"
+                      name="revenue"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={jobData.revenue}
+                      onChange={handleJobInputChange}
+                      required
+                    />
                   </div>
 
                   <div className="job-field">
-                    <label htmlFor="qualification">Qualification (optional)</label>
+                    <label htmlFor="points_per_joining">Points Per Joining *</label>
                     <input
-                      id="qualification"
-                      name="qualification"
-                      value={jobData.qualification}
+                      id="points_per_joining"
+                      name="points_per_joining"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={jobData.points_per_joining}
                       onChange={handleJobInputChange}
+                      required
                     />
                   </div>
                 </div>
 
                 <div className="job-field">
-                  <label htmlFor="skills">Skills (optional)</label>
-                  <textarea
-                    id="skills"
-                    name="skills"
-                    value={jobData.skills}
-                    onChange={handleJobInputChange}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="job-field">
-                  <label htmlFor="job_description">Job Description (optional)</label>
+                  <label htmlFor="job_description">Job Description *</label>
                   <textarea
                     id="job_description"
                     name="job_description"
                     value={jobData.job_description}
                     onChange={handleJobInputChange}
                     rows={4}
+                    required
                   />
                 </div>
 
-                <div className="job-field">
-                  <label htmlFor="benefits">Benefits (optional)</label>
-                  <textarea
-                    id="benefits"
-                    name="benefits"
-                    value={jobData.benefits}
-                    onChange={handleJobInputChange}
-                    rows={3}
-                  />
-                </div>
+                <details className="job-field">
+                  <summary>Optional fields</summary>
+                  <div className="job-form-grid" style={{ marginTop: "10px" }}>
+                    <div className="job-field">
+                      <label htmlFor="city">City</label>
+                      <input id="city" name="city" value={jobData.city} onChange={handleJobInputChange} />
+                    </div>
+                    <div className="job-field">
+                      <label htmlFor="state">State</label>
+                      <input id="state" name="state" value={jobData.state} onChange={handleJobInputChange} />
+                    </div>
+                    <div className="job-field">
+                      <label htmlFor="pincode">Pincode</label>
+                      <input id="pincode" name="pincode" value={jobData.pincode} onChange={handleJobInputChange} />
+                    </div>
+                    <div className="job-field">
+                      <label htmlFor="experience">Experience</label>
+                      <input
+                        id="experience"
+                        name="experience"
+                        value={jobData.experience}
+                        onChange={handleJobInputChange}
+                      />
+                    </div>
+                    <div className="job-field">
+                      <label htmlFor="salary">Salary</label>
+                      <input id="salary" name="salary" value={jobData.salary} onChange={handleJobInputChange} />
+                    </div>
+                    <div className="job-field">
+                      <label htmlFor="qualification">Qualification</label>
+                      <input
+                        id="qualification"
+                        name="qualification"
+                        value={jobData.qualification}
+                        onChange={handleJobInputChange}
+                      />
+                    </div>
+                  </div>
+                  <div className="job-field">
+                    <label htmlFor="skills">Skills</label>
+                    <textarea
+                      id="skills"
+                      name="skills"
+                      value={jobData.skills}
+                      onChange={handleJobInputChange}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="job-field">
+                    <label htmlFor="benefits">Benefits</label>
+                    <textarea
+                      id="benefits"
+                      name="benefits"
+                      value={jobData.benefits}
+                      onChange={handleJobInputChange}
+                      rows={3}
+                    />
+                  </div>
+                </details>
 
                 <button type="submit" className="recruiter-login-btn" disabled={isSubmitting}>
-                  {isSubmitting ? "Submitting..." : "Submit Job"}
+                  {isSubmitting ? "Submitting..." : "Create Job Alert"}
                 </button>
 
                 {jobMessage ? (

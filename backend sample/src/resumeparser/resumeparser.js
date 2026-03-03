@@ -2,9 +2,12 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const fs = require("fs");
 const path = require("path");
 const yaml = require("js-yaml");
+const dotenv = require("dotenv");
+
+dotenv.config();
 
 // Load API key from environment or config file
-let apiKey = process.env.GEMINI_API_KEY;
+let apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY;
 let apiKeySource = "environment";
 
 if (!apiKey) {

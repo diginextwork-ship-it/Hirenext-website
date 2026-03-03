@@ -272,6 +272,63 @@ const ensureJobResumeSelectionTable = async () => {
   );
 };
 
+const ensureMoneySumTable = async () => {
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS money_sum (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      company_rev DECIMAL(14,2) NOT NULL DEFAULT 0,
+      expense DECIMAL(14,2) NOT NULL DEFAULT 0,
+      profit DECIMAL(14,2) NOT NULL DEFAULT 0,
+      reason TEXT NULL,
+      entry_type VARCHAR(20) NOT NULL DEFAULT 'expense',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_money_sum_created_at (created_at),
+      INDEX idx_money_sum_entry_type (entry_type)
+    )`
+  );
+
+  if (!(await columnExists("money_sum", "company_rev"))) {
+    await pool.query("ALTER TABLE money_sum ADD COLUMN company_rev DECIMAL(14,2) NOT NULL DEFAULT 0");
+  }
+
+  if (!(await columnExists("money_sum", "expense"))) {
+    await pool.query("ALTER TABLE money_sum ADD COLUMN expense DECIMAL(14,2) NOT NULL DEFAULT 0");
+  }
+
+  if (!(await columnExists("money_sum", "profit"))) {
+    await pool.query("ALTER TABLE money_sum ADD COLUMN profit DECIMAL(14,2) NOT NULL DEFAULT 0");
+  }
+
+  if (!(await columnExists("money_sum", "reason"))) {
+    await pool.query("ALTER TABLE money_sum ADD COLUMN reason TEXT NULL");
+  }
+
+  if (!(await columnExists("money_sum", "entry_type"))) {
+    await pool.query("ALTER TABLE money_sum ADD COLUMN entry_type VARCHAR(20) NOT NULL DEFAULT 'expense'");
+  }
+
+  if (!(await columnExists("money_sum", "created_at"))) {
+    await pool.query(
+      "ALTER TABLE money_sum ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+    );
+  }
+
+  if (!(await columnExists("money_sum", "updated_at"))) {
+    await pool.query(
+      "ALTER TABLE money_sum ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+    );
+  }
+
+  if (!(await indexExists("money_sum", "idx_money_sum_created_at"))) {
+    await pool.query("CREATE INDEX idx_money_sum_created_at ON money_sum (created_at)");
+  }
+
+  if (!(await indexExists("money_sum", "idx_money_sum_entry_type"))) {
+    await pool.query("CREATE INDEX idx_money_sum_entry_type ON money_sum (entry_type)");
+  }
+};
+
 const initDatabase = async () => {
   await ensureResumeIdSequenceTable();
   await ensureRecruiterTableColumns();
@@ -279,6 +336,7 @@ const initDatabase = async () => {
   await ensureResumesDataTable();
   await ensureApplicationColumns();
   await ensureJobResumeSelectionTable();
+  await ensureMoneySumTable();
 };
 
 pool.initDatabase = initDatabase;

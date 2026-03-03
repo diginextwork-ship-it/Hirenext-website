@@ -7,15 +7,31 @@ import JobSearch from "./pages/JobSearch";
 import JobApplication from "./pages/JobApplication";
 import RecruiterLogin from "./pages/RecruiterLogin";
 import AdminPanel from "./pages/AdminPanel";
+import AdminCreateRecruiter from "./pages/admin/AdminCreateRecruiter";
+import AdminRidPerformance from "./pages/admin/AdminRidPerformance";
+import AdminCandidateSubmissions from "./pages/admin/AdminCandidateSubmissions";
+import AdminTopResumes from "./pages/admin/AdminTopResumes";
+import AdminResumeUploads from "./pages/admin/AdminResumeUploads";
+import AdminManualSelection from "./pages/admin/AdminManualSelection";
+import AdminRevenue from "./pages/admin/AdminRevenue";
 import ErrorPage from "./pages/ErrorPage";
+import ScheduleCall from "./pages/ScheduleCall";
 
 const PAGE_TO_PATH = {
   home: "/",
   jobs: "/jobs",
   applyjob: "/jobs/apply",
   contactus: "/contactus",
+  schedulecall: "/schedule-call",
   recruiterlogin: "/recruiter-login",
   adminpanel: "/admin-panel",
+  admincreate: "/admin-panel/create-recruiter",
+  adminridstats: "/admin-panel/recruiter-performance",
+  admincandidatestats: "/admin-panel/candidate-submissions",
+  admintopresumes: "/admin-panel/top-resumes",
+  adminuploads: "/admin-panel/recruiter-uploads",
+  adminmanualselection: "/admin-panel/manual-selection",
+  adminrevenue: "/admin-panel/revenue",
 };
 
 const normalizePath = (pathname) => {
@@ -32,8 +48,16 @@ const getPageFromPath = (pathname) => {
   if (normalizedPath === "/jobs") return "jobs";
   if (normalizedPath === "/jobs/apply") return "applyjob";
   if (normalizedPath === "/contactus") return "contactus";
+  if (normalizedPath === "/schedule-call") return "schedulecall";
   if (normalizedPath === "/recruiter-login") return "recruiterlogin";
   if (normalizedPath === "/admin-panel") return "adminpanel";
+  if (normalizedPath === "/admin-panel/create-recruiter") return "admincreate";
+  if (normalizedPath === "/admin-panel/recruiter-performance") return "adminridstats";
+  if (normalizedPath === "/admin-panel/candidate-submissions") return "admincandidatestats";
+  if (normalizedPath === "/admin-panel/top-resumes") return "admintopresumes";
+  if (normalizedPath === "/admin-panel/recruiter-uploads") return "adminuploads";
+  if (normalizedPath === "/admin-panel/manual-selection") return "adminmanualselection";
+  if (normalizedPath === "/admin-panel/revenue") return "adminrevenue";
   return "notfound";
 };
 
@@ -72,10 +96,26 @@ export default function App() {
         return <JobSearch setCurrentPage={setCurrentPage} />;
       case "applyjob":
         return <JobApplication setCurrentPage={setCurrentPage} />;
+      case "schedulecall":
+        return <ScheduleCall />;
       case "recruiterlogin":
         return <RecruiterLogin />;
       case "adminpanel":
-        return <AdminPanel />;
+        return <AdminPanel setCurrentPage={setCurrentPage} />;
+      case "admincreate":
+        return <AdminCreateRecruiter setCurrentPage={setCurrentPage} />;
+      case "adminridstats":
+        return <AdminRidPerformance setCurrentPage={setCurrentPage} />;
+      case "admincandidatestats":
+        return <AdminCandidateSubmissions setCurrentPage={setCurrentPage} />;
+      case "admintopresumes":
+        return <AdminTopResumes setCurrentPage={setCurrentPage} />;
+      case "adminuploads":
+        return <AdminResumeUploads setCurrentPage={setCurrentPage} />;
+      case "adminmanualselection":
+        return <AdminManualSelection setCurrentPage={setCurrentPage} />;
+      case "adminrevenue":
+        return <AdminRevenue setCurrentPage={setCurrentPage} />;
       case "notfound":
         return (
           <ErrorPage
