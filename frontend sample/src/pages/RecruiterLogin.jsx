@@ -9,6 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import "../styles/recruiter-login.css";
+import { clearAuthSession, getAuthSession, saveAuthSession } from "../auth/session";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
@@ -111,9 +112,15 @@ export default function RecruiterLogin() {
     Boolean(recruiter?.addjob);
   const canUploadResumes = normalizedRole === "recruiter";
   const showRecruiterPerformance = normalizedRole === "recruiter";
+  const getAuthHeaders = (extraHeaders = {}) => {
+    const token = getAuthSession()?.token || "";
+    return token ? { Authorization: `Bearer ${token}`, ...extraHeaders } : extraHeaders;
+  };
 
   const fetchRecruiterDashboard = async (rid) => {
-    const response = await fetch(`${API_BASE_URL}/api/recruiters/${rid}/dashboard`);
+    const response = await fetch(`${API_BASE_URL}/api/recruiters/${rid}/dashboard`, {
+      headers: getAuthHeaders(),
+    });
     const data = await readJsonResponse(
       response,
       "Check VITE_API_BASE_URL and backend route setup."
@@ -130,7 +137,9 @@ export default function RecruiterLogin() {
   const fetchApplications = async (rid) => {
     setIsLoadingApplications(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/recruiters/${rid}/applications`);
+      const response = await fetch(`${API_BASE_URL}/api/recruiters/${rid}/applications`, {
+        headers: getAuthHeaders(),
+      });
       const data = await readJsonResponse(
         response,
         "Check VITE_API_BASE_URL and backend route setup."
@@ -167,7 +176,9 @@ export default function RecruiterLogin() {
   };
 
   const fetchRecruiterResumes = async (rid) => {
-    const response = await fetch(`${API_BASE_URL}/api/recruiters/${rid}/resumes`);
+    const response = await fetch(`${API_BASE_URL}/api/recruiters/${rid}/resumes`, {
+      headers: getAuthHeaders(),
+    });
     const data = await readJsonResponse(
       response,
       "Check VITE_API_BASE_URL and backend route setup."
@@ -205,6 +216,12 @@ export default function RecruiterLogin() {
       }
 
       setRecruiter(data.recruiter);
+      saveAuthSession({
+        token: data.token,
+        role: data?.recruiter?.role || "recruiter",
+        rid: data?.recruiter?.rid,
+        name: data?.recruiter?.name,
+      });
       setEmail("");
       setPassword("");
     } catch (error) {
@@ -217,6 +234,21 @@ export default function RecruiterLogin() {
       setIsSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (recruiter) return;
+    const session = getAuthSession();
+    if (!session) return;
+    const sessionRole = String(session.role || "").toLowerCase();
+    if (sessionRole === "recruiter" || sessionRole === "job creator" || sessionRole === "job adder") {
+      setRecruiter({
+        rid: session.rid,
+        name: session.name || "Recruiter",
+        role: session.role,
+        addjob: sessionRole === "job creator" || sessionRole === "job adder",
+      });
+    }
+  }, [recruiter]);
 
   useEffect(() => {
     if (!recruiter?.rid) return;
@@ -259,6 +291,7 @@ export default function RecruiterLogin() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...getAuthHeaders(),
           },
           body: JSON.stringify({ candidateName }),
         }
@@ -344,6 +377,7 @@ export default function RecruiterLogin() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({ ...jobData, recruiter_rid: recruiter.rid }),
       });
@@ -377,7 +411,7 @@ export default function RecruiterLogin() {
       });
       try {
         await fetchAllJobs();
-      } catch (refreshError) {
+      } catch {
         // Keep create success visible even if list refresh fails on older schemas.
       }
     } catch (error) {
@@ -412,6 +446,7 @@ export default function RecruiterLogin() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           job_jid: Number(resumeData.job_jid),
@@ -447,6 +482,14 @@ export default function RecruiterLogin() {
     }
   };
 
+  const handleLogout = () => {
+    clearAuthSession();
+    setRecruiter(null);
+    setApplications([]);
+    setJobs([]);
+    setUploadedResumes([]);
+  };
+
   if (recruiter) {
     return (
       <main className="recruiter-login-page">
@@ -456,6 +499,9 @@ export default function RecruiterLogin() {
             <p>
               Logged in as <strong>{recruiter.name}</strong>.
             </p>
+            <button type="button" className="admin-back-btn" onClick={handleLogout}>
+              Logout
+            </button>
 
             {showRecruiterPerformance ? (
               <>
@@ -759,6 +805,16 @@ export default function RecruiterLogin() {
                                 href={`${API_BASE_URL}/api/recruiters/${recruiter.rid}/resumes/${item.resId}/file`}
                                 target="_blank"
                                 rel="noreferrer"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  const token = getAuthSession()?.token;
+                                  if (!token) return;
+                                  window.open(
+                                    `${API_BASE_URL}/api/recruiters/${recruiter.rid}/resumes/${item.resId}/file?token=${encodeURIComponent(token)}`,
+                                    "_blank",
+                                    "noopener,noreferrer"
+                                  );
+                                }}
                               >
                                 View
                               </a>

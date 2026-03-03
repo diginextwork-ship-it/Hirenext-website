@@ -1,8 +1,8 @@
+import { getAuthToken } from "../../auth/session";
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
-export const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY || "admin123";
 
 export const getAdminHeaders = (extraHeaders = {}) => ({
-  "x-admin-key": ADMIN_API_KEY,
+  Authorization: `Bearer ${getAuthToken()}`,
   ...extraHeaders,
 });
 

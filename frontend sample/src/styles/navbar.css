@@ -246,8 +246,12 @@
 
 @media (max-width: 768px) {
     .logo-image {
-        height: 105px;
+        height: 72px;
         width: auto;
+    }
+
+    .navbar {
+        padding: 0.4rem 0;
     }
 
     .hamburger {
@@ -284,7 +288,7 @@
     }
 
     .navbar-menu.open {
-        max-height: 75vh;
+        max-height: min(78vh, 520px);
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
@@ -309,6 +313,7 @@
     .btn {
         width: 100%;
         text-align: center;
+        min-height: 44px;
     }
 
     .dropdown-menu {
@@ -326,5 +331,15 @@
 
     .dropdown-item:hover {
         background-color: rgba(0, 0, 0, 0.2);
+    }
+}
+
+@media (max-width: 420px) {
+    .logo-image {
+        height: 60px;
+    }
+
+    .navbar-container {
+        padding: 0 0.75rem;
     }
 }

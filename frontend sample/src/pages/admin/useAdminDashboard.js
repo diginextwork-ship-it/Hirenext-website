@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { API_BASE_URL, readJsonResponse } from "./adminApi";
+import { API_BASE_URL, getAdminHeaders, readJsonResponse } from "./adminApi";
 
 export default function useAdminDashboard() {
   const [dashboard, setDashboard] = useState({
@@ -16,7 +16,9 @@ export default function useAdminDashboard() {
     setIsLoadingDashboard(true);
     setErrorMessage("");
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/dashboard`);
+      const response = await fetch(`${API_BASE_URL}/api/admin/dashboard`, {
+        headers: getAdminHeaders(),
+      });
       const data = await readJsonResponse(
         response,
         "Check VITE_API_BASE_URL and backend route setup."

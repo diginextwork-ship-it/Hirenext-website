@@ -1,6 +1,6 @@
 import { useState } from "react";
 import AdminLayout from "./AdminLayout";
-import { API_BASE_URL, readJsonResponse } from "./adminApi";
+import { API_BASE_URL, getAdminHeaders, readJsonResponse } from "./adminApi";
 import "../../styles/admin-panel.css";
 
 export default function AdminCreateRecruiter({ setCurrentPage }) {
@@ -22,9 +22,9 @@ export default function AdminCreateRecruiter({ setCurrentPage }) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/recruiters`, {
         method: "POST",
-        headers: {
+        headers: getAdminHeaders({
           "Content-Type": "application/json",
-        },
+        }),
         body: JSON.stringify({ name, email, password, role }),
       });
 

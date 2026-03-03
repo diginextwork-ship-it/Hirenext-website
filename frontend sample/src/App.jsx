@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import Home from "./pages/Home";
@@ -6,6 +6,7 @@ import Contact from "./pages/contact";
 import JobSearch from "./pages/JobSearch";
 import JobApplication from "./pages/JobApplication";
 import RecruiterLogin from "./pages/RecruiterLogin";
+import AdminLogin from "./pages/AdminLogin";
 import AdminPanel from "./pages/AdminPanel";
 import AdminCreateRecruiter from "./pages/admin/AdminCreateRecruiter";
 import AdminRidPerformance from "./pages/admin/AdminRidPerformance";
@@ -16,6 +17,7 @@ import AdminManualSelection from "./pages/admin/AdminManualSelection";
 import AdminRevenue from "./pages/admin/AdminRevenue";
 import ErrorPage from "./pages/ErrorPage";
 import ScheduleCall from "./pages/ScheduleCall";
+import { clearAuthSession, getAuthSession } from "./auth/session";
 
 const PAGE_TO_PATH = {
   home: "/",
@@ -24,6 +26,7 @@ const PAGE_TO_PATH = {
   contactus: "/contactus",
   schedulecall: "/schedule-call",
   recruiterlogin: "/recruiter-login",
+  adminlogin: "/admin-login",
   adminpanel: "/admin-panel",
   admincreate: "/admin-panel/create-recruiter",
   adminridstats: "/admin-panel/recruiter-performance",
@@ -33,6 +36,17 @@ const PAGE_TO_PATH = {
   adminmanualselection: "/admin-panel/manual-selection",
   adminrevenue: "/admin-panel/revenue",
 };
+
+const ADMIN_ONLY_PAGES = new Set([
+  "adminpanel",
+  "admincreate",
+  "adminridstats",
+  "admincandidatestats",
+  "admintopresumes",
+  "adminuploads",
+  "adminmanualselection",
+  "adminrevenue",
+]);
 
 const normalizePath = (pathname) => {
   if (!pathname) return "/";
@@ -50,6 +64,7 @@ const getPageFromPath = (pathname) => {
   if (normalizedPath === "/contactus") return "contactus";
   if (normalizedPath === "/schedule-call") return "schedulecall";
   if (normalizedPath === "/recruiter-login") return "recruiterlogin";
+  if (normalizedPath === "/admin-login") return "adminlogin";
   if (normalizedPath === "/admin-panel") return "adminpanel";
   if (normalizedPath === "/admin-panel/create-recruiter") return "admincreate";
   if (normalizedPath === "/admin-panel/recruiter-performance") return "adminridstats";
@@ -62,23 +77,40 @@ const getPageFromPath = (pathname) => {
 };
 
 export default function App() {
-  const [currentPage, setCurrentPageState] = useState(() =>
-    getPageFromPath(window.location.pathname)
+  const [authSession, setAuthSession] = useState(() => getAuthSession());
+  const [currentPage, setCurrentPageState] = useState(() => getPageFromPath(window.location.pathname));
+  const isAdmin = useMemo(
+    () => String(authSession?.role || "").trim().toLowerCase() === "admin",
+    [authSession?.role]
   );
+  const guardedPage =
+    ADMIN_ONLY_PAGES.has(currentPage) && !isAdmin ? "adminlogin" : currentPage;
 
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPageState(getPageFromPath(window.location.pathname));
+      setAuthSession(getAuthSession());
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
+  useEffect(() => {
+    if (!ADMIN_ONLY_PAGES.has(currentPage) || isAdmin) return;
+    const loginPath = PAGE_TO_PATH.adminlogin;
+    if (normalizePath(window.location.pathname) !== loginPath) {
+      window.history.replaceState({ page: "adminlogin" }, "", loginPath);
+    }
+  }, [currentPage, isAdmin]);
+
   const setCurrentPage = (page) => {
+    if (ADMIN_ONLY_PAGES.has(page) && !isAdmin) {
+      page = "adminlogin";
+    }
+
     const nextPath = PAGE_TO_PATH[page] || "/";
     const activePath = normalizePath(window.location.pathname);
-
     setCurrentPageState(page);
 
     if (activePath !== nextPath) {
@@ -88,8 +120,14 @@ export default function App() {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   };
 
+  const handleLogout = () => {
+    clearAuthSession();
+    setAuthSession(null);
+    setCurrentPage("home");
+  };
+
   const renderPage = () => {
-    switch (currentPage) {
+    switch (guardedPage) {
       case "contactus":
         return <Contact setCurrentPage={setCurrentPage} />;
       case "jobs":
@@ -100,8 +138,17 @@ export default function App() {
         return <ScheduleCall />;
       case "recruiterlogin":
         return <RecruiterLogin />;
+      case "adminlogin":
+        return (
+          <AdminLogin
+            onLoginSuccess={() => {
+              setAuthSession(getAuthSession());
+              setCurrentPage("adminpanel");
+            }}
+          />
+        );
       case "adminpanel":
-        return <AdminPanel setCurrentPage={setCurrentPage} />;
+        return <AdminPanel setCurrentPage={setCurrentPage} onLogout={handleLogout} />;
       case "admincreate":
         return <AdminCreateRecruiter setCurrentPage={setCurrentPage} />;
       case "adminridstats":
@@ -130,7 +177,7 @@ export default function App() {
     }
   };
 
-  if (currentPage === "notfound") {
+  if (guardedPage === "notfound") {
     return renderPage();
   }
 
@@ -140,7 +187,7 @@ export default function App() {
         <Navbar setCurrentPage={setCurrentPage} currentPage={currentPage} />
       ) : null}
       {renderPage()}
-      <Footer setCurrentPage={setCurrentPage} minimal={currentPage !== "home"} />
+      <Footer setCurrentPage={setCurrentPage} minimal={currentPage !== "home"} isAdmin={isAdmin} />
     </div>
   );
 }

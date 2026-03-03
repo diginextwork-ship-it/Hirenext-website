@@ -1,7 +1,7 @@
 import useAdminDashboard from "./admin/useAdminDashboard";
 import "../styles/admin-panel.css";
 
-export default function AdminPanel({ setCurrentPage }) {
+export default function AdminPanel({ setCurrentPage, onLogout }) {
   const { dashboard, isLoadingDashboard, errorMessage, refreshDashboard } =
     useAdminDashboard();
 
@@ -61,14 +61,23 @@ export default function AdminPanel({ setCurrentPage }) {
             Organize recruiter access, track resume activity, and monitor ATS insights.
           </p>
         </div>
-        <button
-          type="button"
-          className="admin-refresh-btn"
-          onClick={refreshDashboard}
-          disabled={isLoadingDashboard}
-        >
-          {isLoadingDashboard ? "Refreshing..." : "Refresh data"}
-        </button>
+        <div className="admin-page-actions">
+          <button
+            type="button"
+            className="admin-back-btn"
+            onClick={onLogout}
+          >
+            Logout
+          </button>
+          <button
+            type="button"
+            className="admin-refresh-btn"
+            onClick={refreshDashboard}
+            disabled={isLoadingDashboard}
+          >
+            {isLoadingDashboard ? "Refreshing..." : "Refresh data"}
+          </button>
+        </div>
       </section>
 
       {errorMessage ? (

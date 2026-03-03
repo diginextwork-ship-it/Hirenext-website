@@ -4,7 +4,6 @@ import "../styles/navbar.css";
 
 export default function Navbar({ setCurrentPage, currentPage }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isInsightsOpen, setIsInsightsOpen] = useState(false);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -13,7 +12,6 @@ export default function Navbar({ setCurrentPage, currentPage }) {
   const handleNavClick = (page) => {
     setCurrentPage(page);
     setIsMenuOpen(false);
-    setIsInsightsOpen(false);
   };
 
   return (

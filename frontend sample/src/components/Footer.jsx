@@ -1,7 +1,7 @@
 import logoImage from "../assets/Logo.png";
 import "../styles/footer.css";
 
-export default function Footer({ setCurrentPage, minimal = false }) {
+export default function Footer({ setCurrentPage, minimal = false, isAdmin = false }) {
   const currentYear = new Date().getFullYear();
 
   if (minimal) {
@@ -30,9 +30,9 @@ export default function Footer({ setCurrentPage, minimal = false }) {
             <button
               type="button"
               className="footer-admin-btn"
-              onClick={() => setCurrentPage("adminpanel")}
+              onClick={() => setCurrentPage(isAdmin ? "adminpanel" : "adminlogin")}
             >
-              Admin panel
+              {isAdmin ? "Admin panel" : "Admin login"}
             </button>
           </div>
 

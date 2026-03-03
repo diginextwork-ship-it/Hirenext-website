@@ -367,18 +367,46 @@
 
 @media (max-width: 640px) {
   .admin-page {
-    padding: var(--spacing-2xl) var(--spacing-md);
+    padding: var(--spacing-xl) 0.75rem;
   }
 
   .admin-hero {
-    padding: 1.5rem;
+    padding: 1rem;
+    border-radius: 1rem;
   }
 
   .admin-card {
-    padding: 1.25rem;
+    padding: 1rem;
   }
 
   .admin-table {
     min-width: 420px;
+  }
+
+  .admin-panel-card,
+  .admin-dashboard-card {
+    padding: 1rem;
+    border-radius: 0.85rem;
+  }
+
+  .admin-page-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-back-btn,
+  .admin-refresh-btn,
+  .admin-create-btn {
+    width: 100%;
+    text-align: center;
+    min-height: 44px;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 0.55rem;
+    font-size: 0.86rem;
+    white-space: nowrap;
   }
 }
