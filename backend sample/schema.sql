@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS recruiter (
   password VARCHAR(255) NOT NULL,
   role VARCHAR(30) NOT NULL DEFAULT 'recruiter',
   addjob BOOLEAN NOT NULL DEFAULT FALSE,
-  success INT NOT NULL DEFAULT 0
+  success INT NOT NULL DEFAULT 0,
+  points INT NOT NULL DEFAULT 0
 );
 
 UPDATE recruiter
@@ -23,17 +24,30 @@ CREATE TABLE IF NOT EXISTS jobs (
   pincode VARCHAR(20) NOT NULL,
   company_name VARCHAR(190) NOT NULL,
   role_name VARCHAR(190) NOT NULL,
+  positions_open INT NOT NULL DEFAULT 1,
+  revenue DECIMAL(12,2) NULL,
+  points_per_joining INT NOT NULL DEFAULT 0,
   skills TEXT NULL,
   job_description TEXT NULL,
   experience VARCHAR(80) NULL,
   salary VARCHAR(120) NULL,
-  qualification VARCHAR(120) NULL,
+  qualification LONGTEXT NULL,
   benefits TEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_jobs_recruiter
     FOREIGN KEY (recruiter_rid) REFERENCES recruiter(rid)
     ON UPDATE CASCADE ON DELETE CASCADE
 );
+
+ALTER TABLE jobs
+  ADD COLUMN IF NOT EXISTS positions_open INT NOT NULL DEFAULT 1;
+ALTER TABLE jobs
+  ADD COLUMN IF NOT EXISTS revenue DECIMAL(12,2) NULL;
+ALTER TABLE jobs
+  ADD COLUMN IF NOT EXISTS points_per_joining INT NOT NULL DEFAULT 0;
+
+ALTER TABLE recruiter
+  ADD COLUMN IF NOT EXISTS points INT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS applications (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -73,6 +87,10 @@ CREATE TABLE IF NOT EXISTS resumes_data (
   res_id VARCHAR(30) PRIMARY KEY,
   rid VARCHAR(20) NOT NULL,
   job_jid INT NULL,
+  submitted_by_role VARCHAR(30) NULL DEFAULT 'recruiter',
+  is_accepted BOOLEAN NOT NULL DEFAULT FALSE,
+  accepted_at TIMESTAMP NULL DEFAULT NULL,
+  accepted_by_admin VARCHAR(50) NULL,
   resume LONGBLOB NOT NULL,
   resume_filename VARCHAR(255) NOT NULL,
   resume_type VARCHAR(10) NOT NULL,
@@ -91,6 +109,33 @@ CREATE TABLE IF NOT EXISTS resumes_data (
     ON UPDATE CASCADE ON DELETE SET NULL
 );
 
+ALTER TABLE resumes_data
+  ADD COLUMN IF NOT EXISTS submitted_by_role VARCHAR(30) NULL DEFAULT 'recruiter';
+ALTER TABLE resumes_data
+  ADD COLUMN IF NOT EXISTS is_accepted BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE resumes_data
+  ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP NULL DEFAULT NULL;
+ALTER TABLE resumes_data
+  ADD COLUMN IF NOT EXISTS accepted_by_admin VARCHAR(50) NULL;
+
 CREATE TABLE IF NOT EXISTS resume_id_sequence (
   seq_id BIGINT AUTO_INCREMENT PRIMARY KEY
+);
+
+CREATE TABLE IF NOT EXISTS job_resume_selection (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  job_jid INT NOT NULL,
+  res_id VARCHAR(30) NOT NULL,
+  selected_by_admin VARCHAR(50) NOT NULL,
+  selection_status ENUM('selected', 'rejected', 'on_hold') NOT NULL DEFAULT 'selected',
+  selection_note TEXT NULL,
+  selected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_job_resume_selection (job_jid, res_id),
+  INDEX idx_job_resume_selection_job_status_time (job_jid, selection_status, selected_at),
+  CONSTRAINT fk_job_resume_selection_job
+    FOREIGN KEY (job_jid) REFERENCES jobs(jid)
+    ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT fk_job_resume_selection_resume
+    FOREIGN KEY (res_id) REFERENCES resumes_data(res_id)
+    ON UPDATE CASCADE ON DELETE CASCADE
 );

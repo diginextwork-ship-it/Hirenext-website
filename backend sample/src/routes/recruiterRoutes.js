@@ -43,8 +43,10 @@ const getRecruiterIdColumn = async (tableName) => {
 
 const normalizeRecruiterRole = (value, addjobValue) => {
   const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "job creator" || normalized === "recruiter") return normalized;
-  return Boolean(addjobValue) ? "job creator" : "recruiter";
+  if (normalized === "job creator" || normalized === "job adder" || normalized === "recruiter") {
+    return normalized;
+  }
+  return Boolean(addjobValue) ? "job adder" : "recruiter";
 };
 
 const getRecruiterSummary = async (rid) => {
@@ -144,15 +146,15 @@ router.post("/api/recruiters", async (req, res) => {
     const rid = `hnr-${nextNumber}`;
 
     const normalizedRole = String(role || "recruiter").trim().toLowerCase();
-    const allowedRoles = new Set(["job creator", "recruiter"]);
+    const allowedRoles = new Set(["job creator", "job adder", "recruiter"]);
     if (!allowedRoles.has(normalizedRole)) {
       await connection.rollback();
       return res.status(400).json({
-        message: "role must be either 'job creator' or 'recruiter'.",
+        message: "role must be one of 'job creator', 'job adder', or 'recruiter'.",
       });
     }
 
-    const canAddJob = normalizedRole === "job creator";
+    const canAddJob = normalizedRole === "job creator" || normalizedRole === "job adder";
     const hasRoleColumn = await columnExists("recruiter", "role");
     const hasAddJobColumn = await columnExists("recruiter", "addjob");
     const hasPointsColumn = await columnExists("recruiter", "points");

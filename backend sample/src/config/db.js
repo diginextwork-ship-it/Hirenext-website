@@ -106,6 +106,14 @@ const ensureJobsTableColumns = async () => {
   if (!(await indexExists("jobs", "idx_jobs_created_at"))) {
     await pool.query("CREATE INDEX idx_jobs_created_at ON jobs (created_at)");
   }
+
+  if (await columnExists("jobs", "qualification")) {
+    const qualificationMetadata = await getColumnMetadata("jobs", "qualification");
+    const qualificationType = String(qualificationMetadata?.dataType || "").toLowerCase();
+    if (qualificationType !== "longtext") {
+      await pool.query("ALTER TABLE jobs MODIFY COLUMN qualification LONGTEXT NULL");
+    }
+  }
 };
 
 const ensureRecruiterTableColumns = async () => {
