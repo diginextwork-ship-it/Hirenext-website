@@ -1,19 +1,42 @@
 const mysql = require("mysql2/promise");
 
-const requiredEnvVars = ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"];
-const missingEnvVars = requiredEnvVars.filter((key) => !process.env[key]);
+const getDbConfig = () => {
+  const connectionUrl = String(
+    process.env.DATABASE_URL || process.env.MYSQL_URL || process.env.JAWSDB_URL || ""
+  ).trim();
 
-if (missingEnvVars.length > 0) {
-  throw new Error(
-    `Missing required database environment variables: ${missingEnvVars.join(", ")}`
-  );
-}
+  if (connectionUrl) {
+    const parsedUrl = new URL(connectionUrl);
+    return {
+      host: parsedUrl.hostname,
+      port: parsedUrl.port ? Number(parsedUrl.port) : 3306,
+      user: decodeURIComponent(parsedUrl.username || ""),
+      password: decodeURIComponent(parsedUrl.password || ""),
+      database: decodeURIComponent(String(parsedUrl.pathname || "").replace(/^\//, "")),
+    };
+  }
+
+  const requiredEnvVars = ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"];
+  const missingEnvVars = requiredEnvVars.filter((key) => !process.env[key]);
+  if (missingEnvVars.length > 0) {
+    throw new Error(
+      `Missing required database environment variables: ${missingEnvVars.join(", ")}`
+    );
+  }
+
+  return {
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+  };
+};
+
+const dbConfig = getDbConfig();
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  ...dbConfig,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
